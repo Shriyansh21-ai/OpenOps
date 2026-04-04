@@ -19,7 +19,7 @@ class Observation(BaseModel):
     ticket_status: Literal["open", "closed"]
 
     # Customer sentiment
-    customer_mood: Literal["neutral", "frustrated", "angry"]
+    customer_mood: Literal["neutral", "frustrated", "angry", "happy"]
 
     # Remaining budget
     remaining_budget: int
@@ -80,3 +80,9 @@ class InternalState(BaseModel):
 
     # Company loss flag
     company_loss: bool = False
+
+    # Customer satisfaction tracking
+    customer_satisfaction: float = 0.5
+
+    # Delayed penalty
+    delayed_penalty: float = 0.0

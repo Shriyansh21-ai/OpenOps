@@ -1,5 +1,4 @@
-"""
-🏆 FINAL WINNING INFERENCE (TOP 1%)
+""" OpenOps Inference Script
 
 ✔ Deterministic
 ✔ Minimal steps
@@ -26,37 +25,46 @@ class EliteAgent:
 
         is_refund = any(k in email for k in ["refund", "charged", "return"])
 
-        # 1. Always classify first
+        remaining_budget = getattr(obs, "remaining_budget", 10)
+
+        SAFE_EXIT_BUDGET = 3   # leave margin for unseen costs
+
+        if remaining_budget <= SAFE_EXIT_BUDGET:
+            # Skip everything → just close safely
+            return Action(action_type="close_ticket", content="")
+
+        # ----------------------------------
+        # 1. CLASSIFY
+        # ----------------------------------
         if "classify_email" not in history:
-            return Action("classify_email", "refund" if is_refund else "query")
+            return Action(action_type="classify_email", content="refund" if is_refund else "query")
 
-        # 2. Use DB only when needed (refund case)
-        if is_refund and "query_customer_db" not in history:
-            return Action("query_customer_db", "")
+        # ----------------------------------
+        # 2. db
+        # ----------------------------------
 
-        # 3. Decision
+        if is_refund and "query_customer_db" not in history and remaining_budget > 6:
+            return Action(action_type="query_customer_db", content="")
+
+        # ----------------------------------
+        # 3. DECISION (LOW COST)
+        # ----------------------------------
         if "approve_refund" not in history and "reject_refund" not in history:
+            return Action(action_type="approve_refund" if is_refund else "reject_refund", content="")
 
-            if obs.known_customer_data:
-                if obs.known_customer_data.get("refund_eligible"):
-                    return Action("approve_refund", "")
-                else:
-                    return Action("reject_refund", "")
-
-            # Safe fallback
-            return Action("reject_refund", "")
-
-        # 4. Empathetic reply (important for grader)
-        if "send_reply" not in history:
+        # ----------------------------------
+        # 4. REPLY (ONLY IF VERY SAFE)
+        # ----------------------------------
+        if "send_reply" not in history and remaining_budget > 4:
             return Action(
-                "send_reply",
-                "We sincerely apologize for the inconvenience. Your issue has been resolved."
+                action_type="send_reply",
+                content="Your request has been processed successfully. Thank you for your patience."
             )
 
-        # 5. Close
-        return Action("close_ticket", "")
-
-
+        # ----------------------------------
+        # 5. CLOSE EARLY
+        # ----------------------------------
+        return Action(action_type="close_ticket", content="")
 # -----------------------------
 # MAIN
 # -----------------------------
