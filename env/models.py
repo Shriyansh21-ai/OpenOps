@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal
 
 
 # -----------------------------
@@ -12,23 +12,22 @@ class Observation(BaseModel):
     # Unique identifier for customer
     customer_id: str
 
-    # Partial observability:
-    # This is ONLY available if agent queries DB
-    known_customer_data: Optional[Dict] = None
+    # Partial observability (None until DB is queried)
+    known_customer_data: Optional[Dict[str, object]] = None
 
-    # Current ticket status (open/closed)
-    ticket_status: str
+    # Ticket status
+    ticket_status: Literal["open", "closed"]
 
-    # Dynamic state reflecting customer sentiment
-    customer_mood: str
+    # Customer sentiment
+    customer_mood: Literal["neutral", "frustrated", "angry"]
 
-    # Remaining budget (cost-constrained actions)
+    # Remaining budget
     remaining_budget: int
 
-    # Remaining steps before episode ends
+    # Remaining steps
     remaining_steps: int
 
-    # Action history (helps agent reason sequentially)
+    # Action history
     history: List[str] = Field(default_factory=list)
 
 
@@ -36,10 +35,18 @@ class Observation(BaseModel):
 # Action chosen by the agent
 # -----------------------------
 class Action(BaseModel):
-    # Type of action (must match allowed action space)
-    action_type: str
+    # Allowed action space (STRICT → avoids invalid actions)
+    action_type: Literal[
+        "query_customer_db",
+        "classify_email",
+        "send_reply",
+        "approve_refund",
+        "reject_refund",
+        "escalate_ticket",
+        "close_ticket",
+    ]
 
-    # Optional content (e.g., classification label or reply text)
+    # Optional payload
     content: Optional[str] = ""
 
 
@@ -49,29 +56,27 @@ class Action(BaseModel):
 # -----------------------------
 class InternalState(BaseModel):
 
-    # Ground-truth intent (used for evaluation)
-    true_intent: str
+    # Ground truth
+    true_intent: Literal["refund", "query"]
 
-    # Whether refund is actually valid
     eligible_for_refund: bool
 
-    # Expected correct resolution (approve/reject)
-    correct_resolution: str
+    correct_resolution: Literal["approve", "reject"]
 
     # Step tracking
     step_count: int = 0
 
-    # Budget constraint (penalizes inefficient policies)
+    # Budget constraint
     budget: int = 10
 
-    # Maximum allowed steps per episode
+    # Max steps
     max_steps: int = 6
 
-    # Episode termination flag
+    # Termination flag
     done: bool = False
 
-    # Whether agent accessed database (important for reasoning)
+    # DB access tracking
     db_accessed: bool = False
 
-    # Tracks incorrect refund approvals (company loss)
+    # Company loss flag
     company_loss: bool = False

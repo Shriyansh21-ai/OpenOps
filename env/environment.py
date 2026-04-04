@@ -1,82 +1,104 @@
 import random
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Any
 
 from .models import Observation, Action, InternalState
 
 
 class OpenOpsEnvironment:
     """
-    Simulates a real-world customer support workflow.
+    🏆 Advanced real-world customer support simulation
 
-    Key properties:
-    - Partial observability (DB required)
-    - Budget constraints (cost per action)
-    - Multi-step decision making
-    - Trade-offs (customer satisfaction vs company loss)
+    Features:
+    - Partial observability
+    - Noisy inputs (real-world ambiguity)
+    - Budget & step constraints
+    - Delayed consequences
+    - Customer satisfaction modeling
+    - Action dependency penalties
     """
 
     def __init__(self, task_name="easy"):
         self.task_name = task_name
-        self.state = None
+        self._internal_state = None
         self.history = []
         self.customer_db = self._load_db()
+        self.current_email = None
 
+    # -----------------------------
+    # DATABASE
+    # -----------------------------
     def _load_db(self):
-        """
-        Simulated customer database.
-        Only accessible if agent explicitly queries it.
-        """
         return {
             "C001": {"name": "John", "orders": 3, "refund_eligible": True},
             "C002": {"name": "Alice", "orders": 1, "refund_eligible": False},
         }
 
+    # -----------------------------
+    # EMAIL SAMPLING (WITH NOISE)
+    # -----------------------------
     def _sample_email(self):
-        """
-        Samples different real-world scenarios:
-        - Refund (eligible / not eligible)
-        - General queries
-        - Edge cases (used product refund)
-        """
         return random.choice([
-            {"email": "I want refund", "customer_id": "C001", "intent": "refund", "eligible": True},
-            {"email": "Refund me now!", "customer_id": "C002", "intent": "refund", "eligible": False},
-            {"email": "Where is my order?", "customer_id": "C001", "intent": "query", "eligible": False},
-            {"email": "Charged twice, used product, refund?", "customer_id": "C002", "intent": "refund", "eligible": False}
+            {
+                "email": "I want refund",
+                "customer_id": "C001",
+                "intent": "refund",
+                "eligible": True
+            },
+            {
+                "email": "Refund me now!!! this is unacceptable",
+                "customer_id": "C002",
+                "intent": "refund",
+                "eligible": False
+            },
+            {
+                "email": "Where is my order??",
+                "customer_id": "C001",
+                "intent": "query",
+                "eligible": False
+            },
+            {
+                "email": "Charged twice, used product, refund?",
+                "customer_id": "C002",
+                "intent": "refund",
+                "eligible": False
+            },
+            {
+                # ambiguous / tricky case
+                "email": "I had an issue with my order",
+                "customer_id": "C001",
+                "intent": "query",
+                "eligible": False
+            }
         ])
 
-    def reset(self):
-        """
-        Initializes a new episode with a fresh customer query.
-        """
+    # -----------------------------
+    # RESET
+    # -----------------------------
+    def reset(self) -> Observation:
         sample = self._sample_email()
         self.current_email = sample
 
-        # Internal ground-truth state
-        self.state = InternalState(
+        self._internal_state = InternalState(
             true_intent=sample["intent"],
             eligible_for_refund=sample["eligible"],
             correct_resolution="approve" if sample["eligible"] else "reject"
         )
 
+        # Extra hidden realism
+        self._internal_state.customer_satisfaction = 0.5
+        self._internal_state.delayed_penalty = 0.0
+
         self.history = []
         return self._get_obs()
 
+    # -----------------------------
+    # STEP
+    # -----------------------------
     def step(self, action: Action) -> Tuple[Observation, float, bool, Dict]:
-        """
-        Executes one action in the environment.
-
-        Returns:
-        - Observation
-        - Reward (continuous)
-        - Done flag
-        - Info dict
-        """
 
         reward = 0.0
         error = None
 
-        # Action cost mapping (introduces budget constraint)
         cost_map = {
             "query_customer_db": 2,
             "classify_email": 1,
@@ -87,109 +109,147 @@ class OpenOpsEnvironment:
             "close_ticket": 0,
         }
 
-        # Invalid action handling (deterministic penalty)
+        # Invalid action
         if action.action_type not in cost_map:
-            return self._get_obs(), -0.2, False, {"error": "invalid_action"}
+            return self._get_obs(), -0.3, False, {"error": "invalid_action"}
 
         # Deduct budget
-        self.state.budget -= cost_map[action.action_type]
+        self._internal_state.budget -= cost_map[action.action_type]
 
-        # Log action history for grading
+        # Log
         self.history.append({
             "action": action.action_type,
             "content": action.content
         })
 
-        # ---------------- ACTION LOGIC ----------------
+        # -----------------------------
+        # ACTION ORDER VALIDATION
+        # -----------------------------
+        if action.action_type in ["approve_refund", "reject_refund"]:
+            if not any(h["action"] == "classify_email" for h in self.history):
+                reward -= 0.2  # acting without understanding
 
+        # -----------------------------
+        # ACTION LOGIC
+        # -----------------------------
         if action.action_type == "query_customer_db":
-            # Enables access to hidden customer data
-            self.state.db_accessed = True
+            self._internal_state.db_accessed = True
+
+            # Simulate noisy DB (real-world inconsistency)
+            if random.random() < 0.1:
+                reward -= 0.1  # misleading info
 
         elif action.action_type == "classify_email":
-            # Reward correct intent classification
-            if action.content == self.state.true_intent:
-                reward += 0.2
+            if action.content == self._internal_state.true_intent:
+                reward += 0.25
             else:
-                reward -= 0.1
+                reward -= 0.15
 
         elif action.action_type == "approve_refund":
-            # Trade-off: correct vs company loss
-            if self.state.eligible_for_refund:
-                reward += 0.3
+            if self._internal_state.eligible_for_refund:
+                reward += 0.4
+                self._internal_state.customer_satisfaction += 0.3
             else:
-                reward -= 0.4
-                self.state.company_loss = True
+                reward -= 0.5
+                self._internal_state.company_loss = True
+                self._internal_state.delayed_penalty += 0.2
 
         elif action.action_type == "reject_refund":
-            if not self.state.eligible_for_refund:
-                reward += 0.3
+            if not self._internal_state.eligible_for_refund:
+                reward += 0.35
             else:
                 reward -= 0.4
+                self._internal_state.customer_satisfaction -= 0.3
 
         elif action.action_type == "send_reply":
-            # Reward empathetic responses (simple NLP heuristic)
-            if any(k in action.content.lower() for k in ["sorry", "understand"]):
-                reward += 0.2
+            text = action.content.lower()
+
+            if any(k in text for k in ["sorry", "apologize", "understand"]):
+                reward += 0.25
+                self._internal_state.customer_satisfaction += 0.2
+            else:
+                reward -= 0.05
+
+        elif action.action_type == "escalate_ticket":
+            reward += 0.1  # safe fallback strategy
 
         elif action.action_type == "close_ticket":
-            # Encourages task completion
-            self.state.done = True
-            reward += 0.1
+            self._internal_state.done = True
 
-        # ---------------- DYNAMIC STATE ----------------
+            # Delayed reward based on satisfaction
+            reward += self._internal_state.customer_satisfaction
 
-        self.state.step_count += 1
+        # -----------------------------
+        # DYNAMICS
+        # -----------------------------
+        self._internal_state.step_count += 1
 
-        # Customer mood evolves based on interaction length & quality
-        if self.state.step_count > 2:
-            mood = "frustrated"
-        else:
-            mood = "neutral"
+        mood = "neutral"
 
-        if reward < 0:
+        if self._internal_state.customer_satisfaction < 0.3:
             mood = "angry"
+        elif self._internal_state.customer_satisfaction > 0.7:
+            mood = "happy"
+        elif self._internal_state.step_count > 2:
+            mood = "frustrated"
 
-        # ---------------- TERMINATION CONDITIONS ----------------
-
-        # Step limit
-        if self.state.step_count >= self.state.max_steps:
-            self.state.done = True
+        # -----------------------------
+        # TERMINATION
+        # -----------------------------
+        if self._internal_state.step_count >= self._internal_state.max_steps:
+            self._internal_state.done = True
             reward -= 0.3
 
-        # Budget exhausted
-        if self.state.budget <= 0:
-            self.state.done = True
+        if self._internal_state.budget <= 0:
+            self._internal_state.done = True
             reward -= 0.3
 
-        # Efficiency bonus (encourages optimal policies)
-        reward += 0.1 * (self.state.budget / 10)
+        # Apply delayed penalty
+        reward -= self._internal_state.delayed_penalty
 
-        return self._get_obs(mood), reward, self.state.done, {"error": error}
+        # Efficiency bonus
+        reward += 0.1 * (self._internal_state.budget / 10)
 
+        return self._get_obs(mood), reward, self._internal_state.done, {"error": error}
+
+    # -----------------------------
+    # OBSERVATION
+    # -----------------------------
     def _get_obs(self, mood="neutral") -> Observation:
-        """
-        Constructs observation visible to the agent.
-        Implements partial observability.
-        """
 
         data = None
-        if self.state.db_accessed:
+        if self._internal_state.db_accessed:
             data = self.customer_db[self.current_email["customer_id"]]
 
         return Observation(
             email=self.current_email["email"],
             customer_id=self.current_email["customer_id"],
             known_customer_data=data,
-            ticket_status="closed" if self.state.done else "open",
+            ticket_status="closed" if self._internal_state.done else "open",
             customer_mood=mood,
-            remaining_budget=self.state.budget,
-            remaining_steps=self.state.max_steps - self.state.step_count,
+            remaining_budget=self._internal_state.budget,
+            remaining_steps=self._internal_state.max_steps - self._internal_state.step_count,
             history=[h["action"] for h in self.history]
         )
 
+    # -----------------------------
+    # REQUIRED STATE FUNCTION
+    # -----------------------------
+    def state(self) -> Dict[str, Any]:
+        """
+        ✅ REQUIRED by OpenEnv spec
+        """
+        return {
+            "internal_state": self._internal_state.dict(),
+            "current_email": self.current_email,
+            "history": self.history,
+            "db_accessed": self._internal_state.db_accessed,
+            "budget": self._internal_state.budget,
+            "step_count": self._internal_state.step_count,
+            "done": self._internal_state.done,
+            "customer_satisfaction": getattr(self._internal_state, "customer_satisfaction", None),
+        }
+
+    # Backward compatibility
     def state_dict(self):
-        """
-        Exposes internal state for grading only (not agent).
-        """
-        return self.state.dict()
+        return self.state()
