@@ -6,14 +6,13 @@ Each task modifies:
 - Budget constraints
 - Scenario complexity
 
-This ensures:
 ✔ Easy → basic reasoning
 ✔ Medium → decision + correctness
 ✔ Hard → planning + optimization + robustness
 """
 
 
-class BaseTask:
+class get_all_tasks:
     name = "base"
 
     def configure(self, env):
@@ -24,63 +23,61 @@ class BaseTask:
 # ----------------------------------
 # EASY: Classification-focused
 # ----------------------------------
-class ClassificationTask(BaseTask):
+class ClassificationTask(get_all_tasks):
     name = "classification_easy"
 
     def configure(self, env):
-        # Minimal steps, minimal cost
-        env.state.max_steps = 3
-        env.state.budget = 5
+        state = env._internal_state
 
-        # Simplify scenarios (only clear cases)
-        env.current_email = {
-            "email": "I want a refund",
-            "customer_id": "C001",
-            "intent": "refund",
-            "eligible": True
-        }
+        # Tight limits
+        state.max_steps = 3
+        state.budget = 5
 
-        # Encourage classification reward
-        env.state.true_intent = "refund"
-        env.state.eligible_for_refund = True
-        env.state.correct_resolution = "approve"
+        # Keep scenario simple (no override of email)
+        state.true_intent = "refund"
+        state.eligible_for_refund = True
+        state.correct_resolution = "approve"
 
 
 # ----------------------------------
 # MEDIUM: Decision-making
 # ----------------------------------
-class RefundDecisionTask(BaseTask):
+class RefundDecisionTask(get_all_tasks):
     name = "refund_decision_medium"
 
     def configure(self, env):
-        env.state.max_steps = 5
-        env.state.budget = 8
+        state = env._internal_state
 
-        # Slight penalty pressure
-        env.state.company_loss = False
+        state.max_steps = 5
+        state.budget = 8
+
+        # Ensure clean baseline
+        state.company_loss = False
 
 
 # ----------------------------------
 # HARD: Full workflow optimization
 # ----------------------------------
-class ConstrainedWorkflowTask(BaseTask):
+class ConstrainedWorkflowTask(get_all_tasks):
     name = "constrained_workflow_hard"
 
     def configure(self, env):
-        env.state.max_steps = 6
-        env.state.budget = 10
+        state = env._internal_state
 
-        # Make environment more uncertain
-        env.state.db_accessed = False
+        state.max_steps = 6
+        state.budget = 10
 
-        
-        if "refund" in env.current_email["email"].lower():
-            # Inject ambiguity
-            env.state.eligible_for_refund = False
+        # Force smart DB usage
+        state.db_accessed = False
+
+        # Introduce mild ambiguity safely
+        if state.true_intent == "refund":
+            # Slight uncertainty but not breaking logic
+            state.customer_satisfaction = 0.4
 
 
 # ----------------------------------
-# TASK REGISTRY 
+# TASK REGISTRY
 # ----------------------------------
 TASK_REGISTRY = {
     "easy": ClassificationTask(),

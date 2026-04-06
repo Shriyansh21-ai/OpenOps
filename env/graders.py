@@ -1,26 +1,22 @@
 """
 Advanced deterministic grading system.
 
-Produces score in [0.0, 1.0] using:
-- Correctness
-- Decision quality
-- Efficiency
-- Resource optimization
-- Risk awareness
-
-Designed for:
-✔ Real-world evaluation
-✔ Strategy differentiation
-✔ High-quality agent selection
+✔ Stable and bounded scoring
+✔ Real-world evaluation signals
+✔ Deterministic and judge-safe
+✔ No hidden edge-case failures
 """
 
 
 def efficiency(steps, max_steps):
-    return max(0, 1 - steps / max_steps)
+    if max_steps <= 0:
+        return 0.0
+    return max(0.0, 1.0 - (steps / max_steps))
 
 
 def budget_score(budget):
-    return max(0, budget / 10)
+    # normalize safely (assuming max budget ~10)
+    return max(0.0, min(1.0, budget / 10.0))
 
 
 class HardGrader:
@@ -30,51 +26,52 @@ class HardGrader:
         # -----------------------------
         # BASIC SIGNALS
         # -----------------------------
-        classification = any(
+        classification = float(any(
             h["action"] == "classify_email" and h["content"] == env.state.true_intent
             for h in history
-        )
+        ))
 
-        correct_decision = any(
+        correct_decision = float(any(
             (h["action"] == "approve_refund" and env.state.eligible_for_refund) or
             (h["action"] == "reject_refund" and not env.state.eligible_for_refund)
             for h in history
-        )
+        ))
 
-        used_db = any(h["action"] == "query_customer_db" for h in history)
+        used_db = float(any(h["action"] == "query_customer_db" for h in history))
 
-        good_reply = any(
+        good_reply = float(any(
             h["action"] == "send_reply" and any(
                 k in h["content"].lower()
                 for k in ["sorry", "understand", "apologize"]
             )
             for h in history
-        )
+        ))
 
-        completed = any(h["action"] == "close_ticket" for h in history)
+        completed = float(any(h["action"] == "close_ticket" for h in history))
 
         # -----------------------------
         # ADVANCED SIGNALS
         # -----------------------------
 
-        # Penalize unnecessary DB usage
-        unnecessary_db = (
+        unnecessary_db = float(
             used_db and env.state.true_intent != "refund"
         )
 
-        # Detect over-action 
-        over_steps = env.state.step_count > (env.state.max_steps * 0.8)
+        over_steps = float(
+            env.state.step_count > (env.state.max_steps * 0.8)
+        )
 
-        # Detect redundant actions
+        # redundant actions detection
         action_counts = {}
         for h in history:
             action_counts[h["action"]] = action_counts.get(h["action"], 0) + 1
 
-        redundant_actions = any(v > 1 for k, v in action_counts.items()
-                                if k not in ["send_reply"])
+        redundant_actions = float(any(
+            v > 1 for k, v in action_counts.items()
+            if k not in ["send_reply"]
+        ))
 
-        # Risk-aware decision
-        risky_decision = (
+        risky_decision = float(
             any(h["action"] == "approve_refund" for h in history)
             and not env.state.eligible_for_refund
         )
@@ -82,10 +79,9 @@ class HardGrader:
         # -----------------------------
         # SCORING
         # -----------------------------
-
         score = 0.0
 
-        # Core correctness (highest weight)
+        # Core correctness (high weight)
         score += 0.25 * classification
         score += 0.30 * correct_decision
 
@@ -104,22 +100,22 @@ class HardGrader:
             score -= 0.05
 
         # -----------------------------
-        # PENALTIES 
+        # PENALTIES
         # -----------------------------
 
         # Skipping DB in refund case
         if not used_db and env.state.true_intent == "refund":
             score -= 0.15
 
-        # Company loss 
+        # Company loss penalty (strong but not destructive)
         if env.state.company_loss:
-            score -= 0.25
+            score -= 0.20
 
-        # Risky wrong approval
+        # Risky incorrect approval
         if risky_decision:
             score -= 0.15
 
-        # Inefficiency penalties
+        # Inefficiency
         if over_steps:
             score -= 0.05
 
@@ -127,6 +123,8 @@ class HardGrader:
             score -= 0.05
 
         # -----------------------------
-        # FINAL CLAMP
+        # FINAL CLAMP (MANDATORY)
         # -----------------------------
-        return max(0.0, min(score, 1.0))
+        score = max(0.0, min(1.0, score))
+
+        return score

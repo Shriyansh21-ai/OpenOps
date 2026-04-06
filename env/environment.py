@@ -4,25 +4,25 @@ from typing import Tuple, Dict, Any
 from .models import Observation, Action, InternalState
 
 
-class OpenOpsEnvironment:
+class OpenEnvEnvironment:
     """
-     Advanced real-world customer support simulation
+    Advanced real-world customer support simulation (DETERMINISTIC VERSION)
 
-    Features:
-    - Partial observability
-    - Noisy inputs (real-world ambiguity)
-    - Budget & step constraints
-    - Delayed consequences
-    - Customer satisfaction modeling
-    - Action dependency penalties
+    ✔ No randomness in evaluation
+    ✔ Reproducible results
+    ✔ Fair grading
+    ✔ Stable across Docker / local
     """
 
-    def __init__(self, task_name="easy"):
+    def __init__(self, task_name="easy", seed=42):
         self.task_name = task_name
         self._internal_state = None
         self.history = []
         self.customer_db = self._load_db()
         self.current_email = None
+
+        # ✅ FIX: deterministic seed
+        random.seed(seed)
 
     # -----------------------------
     # DATABASE
@@ -34,10 +34,10 @@ class OpenOpsEnvironment:
         }
 
     # -----------------------------
-    # EMAIL SAMPLING 
+    # EMAIL SAMPLING (DETERMINISTIC)
     # -----------------------------
     def _sample_email(self):
-        return random.choice([
+        samples = [
             {
                 "email": "I want refund",
                 "customer_id": "C001",
@@ -63,13 +63,16 @@ class OpenOpsEnvironment:
                 "eligible": False
             },
             {
-                # ambiguous / tricky case
                 "email": "I had an issue with my order",
                 "customer_id": "C001",
                 "intent": "query",
                 "eligible": False
             }
-        ])
+        ]
+
+        # ✅ deterministic cycling instead of random
+        index = len(self.history) % len(samples)
+        return samples[index]
 
     # -----------------------------
     # RESET
@@ -84,9 +87,12 @@ class OpenOpsEnvironment:
             correct_resolution="approve" if sample["eligible"] else "reject"
         )
 
-        # Extra hidden realism
+        # ✅ FIX: initialize all fields
         self._internal_state.customer_satisfaction = 0.5
         self._internal_state.delayed_penalty = 0.0
+        self._internal_state.company_loss = False
+        self._internal_state.db_accessed = False
+        self._internal_state.done = False
 
         self.history = []
         return self._get_obs()
@@ -127,17 +133,14 @@ class OpenOpsEnvironment:
         # -----------------------------
         if action.action_type in ["approve_refund", "reject_refund"]:
             if not any(h["action"] == "classify_email" for h in self.history):
-                reward -= 0.2  # acting without understanding
+                reward -= 0.2
 
         # -----------------------------
         # ACTION LOGIC
         # -----------------------------
         if action.action_type == "query_customer_db":
             self._internal_state.db_accessed = True
-
-            # Simulate noisy DB (real-world inconsistency)
-            if random.random() < 0.1:
-                reward -= 0.1  # misleading info
+            reward += 0.05  # ✅ deterministic reward (removed randomness)
 
         elif action.action_type == "classify_email":
             if action.content == self._internal_state.true_intent:
@@ -171,12 +174,10 @@ class OpenOpsEnvironment:
                 reward -= 0.05
 
         elif action.action_type == "escalate_ticket":
-            reward += 0.1  # safe fallback strategy
+            reward += 0.1
 
         elif action.action_type == "close_ticket":
             self._internal_state.done = True
-
-            # Delayed reward based on satisfaction
             reward += self._internal_state.customer_satisfaction
 
         # -----------------------------
@@ -233,12 +234,9 @@ class OpenOpsEnvironment:
         )
 
     # -----------------------------
-    # REQUIRED STATE FUNCTION
+    # STATE FUNCTION
     # -----------------------------
     def state(self) -> Dict[str, Any]:
-        """
-         REQUIRED by OpenEnv spec
-        """
         return {
             "internal_state": self._internal_state.dict(),
             "current_email": self.current_email,
@@ -247,9 +245,8 @@ class OpenOpsEnvironment:
             "budget": self._internal_state.budget,
             "step_count": self._internal_state.step_count,
             "done": self._internal_state.done,
-            "customer_satisfaction": getattr(self._internal_state, "customer_satisfaction", None),
+            "customer_satisfaction": self._internal_state.customer_satisfaction,
         }
 
-    # Backward compatibility
     def state_dict(self):
         return self.state()

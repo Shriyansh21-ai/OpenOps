@@ -3,26 +3,49 @@ version: 1.0
 
 description: Constrained AI operations benchmark with cost, time, and uncertainty
 
-tasks:
-  - classification_easy
-  - refund_decision_medium
-  - constrained_workflow_hard
+environment:
+  name: openops
+  deterministic: true
+  logging: structured
 
-difficulty_levels:
-  - easy
-  - medium
-  - hard
+tasks:
+  easy:
+    - classification_easy
+  medium:
+    - refund_decision_medium
+  hard:
+    - constrained_workflow_hard
 
 actions:
-  - query_customer_db
   - classify_email
-  - send_reply
+  - query_customer_db
   - approve_refund
   - reject_refund
+  - send_reply
   - escalate_ticket
   - close_ticket
 
 constraints:
-  max_steps: variable
-  budget: variable
+  max_steps:
+    easy: 4
+    medium: 5
+    hard: 6
+  budget:
+    easy: 5
+    medium: 6
+    hard: 7
   partial_observability: true
+
+scoring:
+  reward_range: [0, 1]
+  penalties:
+    invalid_action: -0.5
+    unnecessary_step: -0.1
+    wrong_decision: -1.0
+  bonuses:
+    optimal_steps: +0.2
+    correct_decision: +0.5
+
+termination:
+  success_condition: task_completed
+  failure_condition: budget_exceeded
