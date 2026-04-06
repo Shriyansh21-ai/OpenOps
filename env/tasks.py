@@ -56,10 +56,6 @@ class RefundDecisionTask(BaseTask):
         env.state.max_steps = 5
         env.state.budget = 8
 
-        # Mixed difficulty scenario
-        # May require DB lookup
-        # Keeps randomness but within control
-
         # Slight penalty pressure
         env.state.company_loss = False
 
@@ -74,21 +70,17 @@ class ConstrainedWorkflowTask(BaseTask):
         env.state.max_steps = 6
         env.state.budget = 10
 
-        # Introduce harder edge cases
-        # (forces reasoning + planning)
-
         # Make environment more uncertain
         env.state.db_accessed = False
 
-        # Slightly stricter conditions
-        # (simulate real-world ambiguity)
+        
         if "refund" in env.current_email["email"].lower():
             # Inject ambiguity
             env.state.eligible_for_refund = False
 
 
 # ----------------------------------
-# TASK REGISTRY (VERY IMPORTANT)
+# TASK REGISTRY 
 # ----------------------------------
 TASK_REGISTRY = {
     "easy": ClassificationTask(),

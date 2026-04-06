@@ -35,7 +35,7 @@ class Observation(BaseModel):
 # Action chosen by the agent
 # -----------------------------
 class Action(BaseModel):
-    # Allowed action space (STRICT → avoids invalid actions)
+    # Allowed action space
     action_type: Literal[
         "query_customer_db",
         "classify_email",
@@ -52,7 +52,6 @@ class Action(BaseModel):
 
 # -----------------------------
 # Internal environment state
-# (hidden from agent)
 # -----------------------------
 class InternalState(BaseModel):
 

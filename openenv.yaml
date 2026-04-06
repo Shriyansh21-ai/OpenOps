@@ -1,9 +1,18 @@
 name: openops-benchmark
+version: 1.0
+
 description: Constrained AI operations benchmark with cost, time, and uncertainty
+
 tasks:
   - classification_easy
   - refund_decision_medium
   - constrained_workflow_hard
+
+difficulty_levels:
+  - easy
+  - medium
+  - hard
+
 actions:
   - query_customer_db
   - classify_email
@@ -12,3 +21,8 @@ actions:
   - reject_refund
   - escalate_ticket
   - close_ticket
+
+constraints:
+  max_steps: variable
+  budget: variable
+  partial_observability: true

@@ -6,7 +6,7 @@ from .models import Observation, Action, InternalState
 
 class OpenOpsEnvironment:
     """
-    🏆 Advanced real-world customer support simulation
+     Advanced real-world customer support simulation
 
     Features:
     - Partial observability
@@ -34,7 +34,7 @@ class OpenOpsEnvironment:
         }
 
     # -----------------------------
-    # EMAIL SAMPLING (WITH NOISE)
+    # EMAIL SAMPLING 
     # -----------------------------
     def _sample_email(self):
         return random.choice([
@@ -237,7 +237,7 @@ class OpenOpsEnvironment:
     # -----------------------------
     def state(self) -> Dict[str, Any]:
         """
-        ✅ REQUIRED by OpenEnv spec
+         REQUIRED by OpenEnv spec
         """
         return {
             "internal_state": self._internal_state.dict(),

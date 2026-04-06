@@ -62,7 +62,7 @@ class HardGrader:
             used_db and env.state.true_intent != "refund"
         )
 
-        # Detect over-action (too many steps)
+        # Detect over-action 
         over_steps = env.state.step_count > (env.state.max_steps * 0.8)
 
         # Detect redundant actions
@@ -104,14 +104,14 @@ class HardGrader:
             score -= 0.05
 
         # -----------------------------
-        # PENALTIES (IMPORTANT)
+        # PENALTIES 
         # -----------------------------
 
         # Skipping DB in refund case
         if not used_db and env.state.true_intent == "refund":
             score -= 0.15
 
-        # Company loss (critical failure)
+        # Company loss 
         if env.state.company_loss:
             score -= 0.25
 

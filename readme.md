@@ -2,9 +2,32 @@
 
 ##  Overview
 
-This project presents an **intelligent AI agent** designed to operate in a simulated **customer support environment**. The system focuses on **decision-making under constraints**, where the agent must resolve user issues efficiently while balancing **cost, accuracy, and customer satisfaction**.
+OpenOps is an intelligent AI agent designed for a simulated **customer support environment**, focusing on **decision-making under constraints**.
 
-Unlike basic rule-based systems, this project emphasizes **real-world reasoning**, making it closer to production-grade AI workflows.
+The agent must resolve tasks while balancing:
+
+*  Cost (budget usage)
+*  Efficiency (steps)
+*  Accuracy (correct decisions)
+
+Unlike rule-based systems, this project emphasizes **real-world reasoning and trade-offs**, similar to production AI systems.
+
+---
+
+##  Run with Docker
+
+Run the entire system in a reproducible environment:
+
+```bash
+docker build -t openops-benchmark .
+docker run --rm openops-benchmark
+```
+
+###  Expected Output
+
+```json
+{"score": 1.34, "steps": 4, "budget_left": 6}
+```
 
 ---
 
@@ -14,129 +37,69 @@ Unlike basic rule-based systems, this project emphasizes **real-world reasoning*
 OPENOPS/
 │
 ├── env/
-│   ├── environment.py   # Core simulation environment
-│   ├── models.py        # Data structures (Action, Observation, State)
-│   ├── graders.py       # Evaluation and scoring logic
-│   ├── tasks.py         # Task generation (user queries, refund cases)
+│   ├── environment.py   # Simulation engine
+│   ├── models.py        # Action, Observation, State
+│   ├── graders.py       # Scoring logic
+│   ├── tasks.py         # Task generation
 │
-├── OpenOps-benchmark/   # Benchmark/test structure
-│
-├── inference.py         # 🧠 Final intelligent agent (main entry point)
-├── app.py               # Runner / interface
+├── inference.py         # Intelligent agent (main)
+├── app.py               # Optional runner/demo
 ├── Dockerfile           # Container setup
-├── openenv.yaml         # Environment configuration
+├── openenv.yaml         # Environment config
 ├── requirements.txt     # Dependencies
-├── README.md            # Main documentation
 ```
 
 ---
 
 ##  Core Components
 
-###  1. Environment (`env/environment.py`)
+###  Environment
 
-* Simulates a **real customer support system**
-* Provides **partial observations** (agent doesn’t see full data)
-* Enforces:
+* Simulates real customer workflows
+* Enforces **budget + step constraints**
+* Provides **partial information**
 
-  * Step limits
-  * Budget constraints per action
-* Handles:
+###  Tasks
 
-  * State transitions
-  * Reward signals
-  * Action validation
+* Refunds, queries, edge cases
+* Includes ambiguity and noisy inputs
 
----
+###  Grader
 
-###  2. Data Models (`env/models.py`)
+Evaluates based on:
 
-Defines structured interaction between agent and environment:
+* ✔ Correctness
+* ✔ Efficiency
+* ✔ Budget usage
 
-* `Action` → what agent performs
-* `Observation` → what agent sees
-* `State` → internal environment state
+Penalizes unnecessary or wrong actions.
 
-Ensures clean and modular design.
+###  Agent (`inference.py`)
 
----
+Core decision engine:
 
-###  3. Task Generator (`env/tasks.py`)
-
-* Creates diverse scenarios:
-
-  * Refund requests
-  * General queries
-  * Edge cases
-* Introduces:
-
-  * Ambiguity
-  * Noise in user input
-* Helps test **robustness of the agent**
-
----
-
-###  4. Grader (`env/graders.py`)
-
-Advanced evaluation system based on:
-
-*  Task correctness
-*  Efficiency (steps taken)
-*  Budget usage
-*  Decision quality
-
-Penalizes:
-
-* Wrong refund approvals
-* Unnecessary actions
-* Inefficient workflows
-
-Rewards:
-
-* Smart reasoning
-* Minimal steps
-* Proper sequencing
-
----
-
-###  5. Intelligent Agent (`inference.py`)
-
-The core of the project.
-
-#### Decision Flow:
-
-1. Classify user query
-2. Query database (only if needed)
+1. Classify query
+2. Use data if needed
 3. Decide (approve/reject)
-4. Respond empathetically
+4. Respond
 5. Close ticket
 
-#### Key Features:
+**Key Features:**
 
-* Deterministic (stable results)
-* Cost-aware decision making
-* Minimal step execution
+* Deterministic & stable
+* Cost-aware decisions
+* Minimal steps
 * Safe fallback logic
-* Optimized for evaluation metrics
 
 ---
 
-###  6. Deployment Ready
+##  Execution Flow
 
-* Docker support for reproducibility
-* Environment config via `openenv.yaml`
-* Lightweight dependencies
-
----
-
-## ▶ Execution Flow
-
-1. Environment generates a task
-2. Agent receives partial observation
-3. Agent performs actions step-by-step
-4. Environment updates state
-5. Grader evaluates performance
-6. Final output is generated
+1. Task generated
+2. Agent receives observation
+3. Actions executed step-by-step
+4. Environment updates
+5. Grader scores performance
 
 ---
 
@@ -144,7 +107,7 @@ The core of the project.
 
 ```json
 {
-  "score": 0.92,
+  "score": 1.34,
   "steps": 4,
   "budget_left": 6
 }
@@ -152,57 +115,38 @@ The core of the project.
 
 ---
 
-##  Key Highlights
+##  Highlights
 
 * ✔ Real-world simulation (not toy problem)
 * ✔ Decision-making under constraints
 * ✔ Multi-factor evaluation system
-* ✔ Efficient and optimized agent
-* ✔ Clean, modular architecture
-* ✔ Fully reproducible setup
+* ✔ Efficient, optimized agent
+* ✔ Fully reproducible (Docker)
 
 ---
 
-##  What Makes This Project Stand Out
+##  What Makes It Stand Out
 
-This project is not just about automation—it focuses on:
-
-* **Decision Intelligence** instead of hardcoding
-* **Trade-off handling** (cost vs satisfaction)
-* **Adaptive behavior** in uncertain environments
-* **Efficiency-first design**
-
-These are critical aspects of real-world AI systems used in industries like:
-
-* Customer support automation
-* Fintech decision systems
-* AI operations (AIOps)
+* Decision intelligence over hardcoding
+* Handles uncertainty & trade-offs
+* Optimized for efficiency and cost
+* Reflects real AI system design
+* Verified stable output across multiple Docker runs
 
 ---
 
 ##  Future Scope
 
-* Reinforcement Learning-based agent
-* LLM-powered reasoning
-* Multi-agent collaboration
-* Personalization using customer history
+* Reinforcement Learning agent
+* LLM-based reasoning
+* Multi-agent systems
 
 ---
 
 ##  Conclusion
 
-This system demonstrates how AI agents can operate in **complex, constrained environments**, making **accurate, efficient, and user-centric decisions**.
-
-It reflects a strong understanding of:
-
-* System design
-* AI decision-making
-* Real-world constraints
+This project demonstrates how AI agents can operate in **constrained, real-world environments**, making **accurate and efficient decisions**.
 
 ---
 
-###  Final Note
-
-> This project is built with a focus on **practical intelligence, efficiency, and robustness**, making it highly aligned with real-world AI deployment scenarios.
-
----
+> Built with a focus on **efficiency, robustness, and practical AI system design**

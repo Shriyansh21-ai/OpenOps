@@ -27,42 +27,55 @@ class EliteAgent:
 
         remaining_budget = getattr(obs, "remaining_budget", 10)
 
-        SAFE_EXIT_BUDGET = 3   # leave margin for unseen costs
-
-        if remaining_budget <= SAFE_EXIT_BUDGET:
-            # Skip everything → just close safely
-            return Action(action_type="close_ticket", content="")
+        SAFE_EXIT_BUDGET = 2  # smaller buffer
 
         # ----------------------------------
-        # 1. CLASSIFY
+        # 1. ALWAYS CLASSIFY (MANDATORY)
         # ----------------------------------
         if "classify_email" not in history:
             return Action(action_type="classify_email", content="refund" if is_refund else "query")
 
         # ----------------------------------
-        # 2. db
+        # 2. ULTRA SAFE DECISION (DOCKER SAFE)
         # ----------------------------------
 
-        if is_refund and "query_customer_db" not in history and remaining_budget > 6:
-            return Action(action_type="query_customer_db", content="")
-
-        # ----------------------------------
-        # 3. DECISION (LOW COST)
-        # ----------------------------------
         if "approve_refund" not in history and "reject_refund" not in history:
-            return Action(action_type="approve_refund" if is_refund else "reject_refund", content="")
+
+            email_lower = email.lower()
+
+            if obs.known_customer_data:
+                refund_flag = obs.known_customer_data.get("refund_eligible") is True
+
+                # VERY STRICT context (prevents false approvals)
+                refund_context = (
+                    "refund" in email_lower and
+                    ("charged" in email_lower or "money" in email_lower)
+                )
+
+                if refund_flag and refund_context:
+                    return Action(action_type="approve_refund", content="")
+                else:
+                    return Action(action_type="reject_refund", content="")
+
+            return Action(action_type="reject_refund", content="")
+        
+        # ----------------------------------
+        # 3. LOW BUDGET → SKIP EXTRA ACTIONS
+        # ----------------------------------
+        if remaining_budget <= SAFE_EXIT_BUDGET:
+            return Action(action_type="close_ticket", content="")
 
         # ----------------------------------
-        # 4. REPLY (ONLY IF VERY SAFE)
+        # 4. OPTIONAL REPLY (ONLY IF SAFE)
         # ----------------------------------
-        if "send_reply" not in history and remaining_budget > 4:
+        if "send_reply" not in history:
             return Action(
                 action_type="send_reply",
                 content="Your request has been processed successfully. Thank you for your patience."
             )
 
         # ----------------------------------
-        # 5. CLOSE EARLY
+        # 5. CLOSE
         # ----------------------------------
         return Action(action_type="close_ticket", content="")
 # -----------------------------
