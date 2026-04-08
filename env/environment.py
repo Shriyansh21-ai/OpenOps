@@ -5,14 +5,6 @@ from .models import Observation, Action, InternalState
 
 
 class OpenEnvEnvironment:
-    """
-    Advanced real-world customer support simulation (DETERMINISTIC VERSION)
-
-    ✔ No randomness in evaluation
-    ✔ Reproducible results
-    ✔ Fair grading
-    ✔ Stable across Docker / local
-    """
 
     def __init__(self, task_name="easy", seed=42):
         self.task_name = task_name
@@ -21,21 +13,14 @@ class OpenEnvEnvironment:
         self.customer_db = self._load_db()
         self.current_email = None
 
-        # ✅ FIX: deterministic seed
         random.seed(seed)
 
-    # -----------------------------
-    # DATABASE
-    # -----------------------------
     def _load_db(self):
         return {
             "C001": {"name": "John", "orders": 3, "refund_eligible": True},
             "C002": {"name": "Alice", "orders": 1, "refund_eligible": False},
         }
 
-    # -----------------------------
-    # EMAIL SAMPLING (DETERMINISTIC)
-    # -----------------------------
     def _sample_email(self):
         samples = [
             {
@@ -56,27 +41,11 @@ class OpenEnvEnvironment:
                 "intent": "query",
                 "eligible": False
             },
-            {
-                "email": "Charged twice, used product, refund?",
-                "customer_id": "C002",
-                "intent": "refund",
-                "eligible": False
-            },
-            {
-                "email": "I had an issue with my order",
-                "customer_id": "C001",
-                "intent": "query",
-                "eligible": False
-            }
         ]
 
-        # ✅ deterministic cycling instead of random
         index = len(self.history) % len(samples)
         return samples[index]
 
-    # -----------------------------
-    # RESET
-    # -----------------------------
     def reset(self) -> Observation:
         sample = self._sample_email()
         self.current_email = sample
@@ -87,19 +56,26 @@ class OpenEnvEnvironment:
             correct_resolution="approve" if sample["eligible"] else "reject"
         )
 
-        # ✅ FIX: initialize all fields
         self._internal_state.customer_satisfaction = 0.5
         self._internal_state.delayed_penalty = 0.0
         self._internal_state.company_loss = False
         self._internal_state.db_accessed = False
         self._internal_state.done = False
+        self._internal_state.step_count = 0
+
+        if self.task_name == "easy":
+            self._internal_state.max_steps = 4
+            self._internal_state.budget = 12
+        elif self.task_name == "medium":
+            self._internal_state.max_steps = 5
+            self._internal_state.budget = 9
+        else:
+            self._internal_state.max_steps = 6
+            self._internal_state.budget = 6
 
         self.history = []
         return self._get_obs()
 
-    # -----------------------------
-    # STEP
-    # -----------------------------
     def step(self, action: Action) -> Tuple[Observation, float, bool, Dict]:
 
         reward = 0.0
@@ -115,88 +91,82 @@ class OpenEnvEnvironment:
             "close_ticket": 0,
         }
 
-        # Invalid action
         if action.action_type not in cost_map:
             return self._get_obs(), -0.3, False, {"error": "invalid_action"}
 
-        # Deduct budget
         self._internal_state.budget -= cost_map[action.action_type]
 
-        # Log
         self.history.append({
             "action": action.action_type,
             "content": action.content
         })
 
-        # -----------------------------
-        # ACTION ORDER VALIDATION
-        # -----------------------------
         if action.action_type in ["approve_refund", "reject_refund"]:
             if not any(h["action"] == "classify_email" for h in self.history):
                 reward -= 0.2
 
         # -----------------------------
-        # ACTION LOGIC
+        # REWARD LOGIC
         # -----------------------------
         if action.action_type == "query_customer_db":
             self._internal_state.db_accessed = True
-            reward += 0.05  # ✅ deterministic reward (removed randomness)
+            reward += 0.10 if self.task_name == "easy" else (0.05 if self.task_name == "medium" else 0.02)
 
         elif action.action_type == "classify_email":
             if action.content == self._internal_state.true_intent:
-                reward += 0.25
+                reward += 0.30 if self.task_name == "easy" else (0.25 if self.task_name == "medium" else 0.20)
             else:
-                reward -= 0.15
+                reward -= 0.20
 
         elif action.action_type == "approve_refund":
             if self._internal_state.eligible_for_refund:
                 reward += 0.4
                 self._internal_state.customer_satisfaction += 0.3
+
+                # 🔥 HARD FIX: don't end here
+                if self.task_name == "hard":
+                    self._internal_state.done = False
+
             else:
-                reward -= 0.5
-                self._internal_state.company_loss = True
-                self._internal_state.delayed_penalty += 0.2
+                reward -= 0.6
 
         elif action.action_type == "reject_refund":
             if not self._internal_state.eligible_for_refund:
                 reward += 0.35
             else:
-                reward -= 0.4
-                self._internal_state.customer_satisfaction -= 0.3
+                reward -= 0.5
 
         elif action.action_type == "send_reply":
             text = action.content.lower()
 
             if any(k in text for k in ["sorry", "apologize", "understand"]):
-                reward += 0.25
-                self._internal_state.customer_satisfaction += 0.2
+                reward += 0.25 if self.task_name != "hard" else 0.20
             else:
-                reward -= 0.05
+                reward -= 0.10
+
+            # 🔥 HARD FIX: continue flow
+            if self.task_name == "hard":
+                self._internal_state.done = False
 
         elif action.action_type == "escalate_ticket":
-            reward += 0.1
+            reward += 0.1 if self.task_name != "hard" else 0.30
 
         elif action.action_type == "close_ticket":
-            self._internal_state.done = True
-            reward += self._internal_state.customer_satisfaction
 
-        # -----------------------------
-        # DYNAMICS
-        # -----------------------------
+            if not any(h["action"] == "send_reply" for h in self.history):
+                reward -= 0.2
+
+            self._internal_state.done = True
+
+            if self.task_name == "easy":
+                reward += 0.30
+            elif self.task_name == "medium":
+                reward += 0.25
+            else:
+                reward += 0.20
+
         self._internal_state.step_count += 1
 
-        mood = "neutral"
-
-        if self._internal_state.customer_satisfaction < 0.3:
-            mood = "angry"
-        elif self._internal_state.customer_satisfaction > 0.7:
-            mood = "happy"
-        elif self._internal_state.step_count > 2:
-            mood = "frustrated"
-
-        # -----------------------------
-        # TERMINATION
-        # -----------------------------
         if self._internal_state.step_count >= self._internal_state.max_steps:
             self._internal_state.done = True
             reward -= 0.3
@@ -205,17 +175,24 @@ class OpenEnvEnvironment:
             self._internal_state.done = True
             reward -= 0.3
 
-        # Apply delayed penalty
         reward -= self._internal_state.delayed_penalty
 
-        # Efficiency bonus
-        reward += 0.1 * (self._internal_state.budget / 10)
+        if self.task_name == "hard":
+            reward -= 0.05
 
-        return self._get_obs(mood), reward, self._internal_state.done, {"error": error}
+        bonus = 0.1 * (self._internal_state.budget / 10)
+        if self.task_name == "hard":
+            bonus += 0.05
 
-    # -----------------------------
-    # OBSERVATION
-    # -----------------------------
+        reward += bonus
+
+        # 🔥 FINAL HARD SAFETY CHECK
+        if self.task_name == "hard":
+            if not any(h["action"] == "send_reply" for h in self.history):
+                self._internal_state.done = False
+
+        return self._get_obs(), reward, self._internal_state.done, {"error": error}
+
     def _get_obs(self, mood="neutral") -> Observation:
 
         data = None
@@ -233,9 +210,6 @@ class OpenEnvEnvironment:
             history=[h["action"] for h in self.history]
         )
 
-    # -----------------------------
-    # STATE FUNCTION
-    # -----------------------------
     def state(self) -> Dict[str, Any]:
         return {
             "internal_state": self._internal_state.dict(),
