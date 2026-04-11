@@ -1,51 +1,12 @@
-name: openops-benchmark
-version: 1.0
-
-description: Constrained AI operations benchmark with cost, time, and uncertainty
-
-environment:
-  name: openops
-  deterministic: true
-  logging: structured
-
-tasks:
-  easy:
-    - classification_easy
-  medium:
-    - refund_decision_medium
-  hard:
-    - constrained_workflow_hard
-
-actions:
-  - classify_email
-  - query_customer_db
-  - approve_refund
-  - reject_refund
-  - send_reply
-  - escalate_ticket
-  - close_ticket
-
-constraints:
-  max_steps:
-    easy: 4
-    medium: 5
-    hard: 6
-  budget:
-    easy: 5
-    medium: 6
-    hard: 7
-  partial_observability: true
-
-scoring:
-  reward_range: [0, 1]
-  penalties:
-    invalid_action: -0.5
-    unnecessary_step: -0.1
-    wrong_decision: -1.0
-  bonuses:
-    optimal_steps: +0.2
-    correct_decision: +0.5
-
-termination:
-  success_condition: task_completed
-  failure_condition: budget_exceeded
+spec_version: 1
+name: openops
+type: space
+runtime: fastapi
+app: server.app:main
+port: 7860
+description: >
+  Autonomous Customer Support Agent RL Environment. An AI agent handles
+  customer support tickets — classifying issues, querying customer data,
+  checking policies, making refund decisions, and communicating with customers.
+  Features partial observability, policy compliance scoring, and customer
+  satisfaction dynamics.

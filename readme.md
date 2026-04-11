@@ -1,171 +1,66 @@
-# 🚀 OpenOps AI Agent – Deterministic Workflow Automation
-
-An **Advance AI agent** built for the OpenOps environment that autonomously processes customer support workflows with **deterministic logic, safety constraints, and full reproducibility via Docker**.
-
+---
+title: OpenOps
+emoji: 🎧
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
 ---
 
-##  Overview
+# OpenOps: Autonomous Customer Support Agent
 
-This project implements a **structured, action-based agent** that follows a consistent workflow:
+An OpenEnv-compatible RL environment where an AI agent autonomously handles customer support tickets — classifying issues, looking up customer data, checking policies, making refund decisions, and communicating with customers.
 
-**Email → Classification → Customer Lookup → Decision → Response**
+## Why Customer Support?
 
-The system is designed to meet evaluation requirements with:
+- **Partial observability** — customer sentiment is hidden, refund eligibility unknown until checked
+- **Policy compliance** — approving an ineligible refund is a policy violation
+- **Customer context matters** — premium vs standard, churn risk, tenure
+- **Every action has consequences** — rejecting an eligible refund tanks satisfaction
+- **Efficiency matters** — fewer steps to resolution = better score
 
-*  Deterministic behavior (same output every run)
-*  Safe and explainable decision-making
-*  Clean, structured logs for grading
-*  Full environment reproducibility
+## Action Space (10 actions)
 
----
+| ID | Action | Effect |
+|---|---|---|
+| 0 | classify_email | Identify ticket category |
+| 1 | query_customer_db | Look up customer history/tier |
+| 2 | check_policy | Verify refund eligibility |
+| 3 | approve_refund | Approve (must check policy first!) |
+| 4 | reject_refund | Reject refund request |
+| 5 | escalate_to_human | Escalate to supervisor |
+| 6 | send_reply | Respond to customer |
+| 7 | request_more_info | Ask for details |
+| 8 | apply_discount | Offer discount/credit alternative |
+| 9 | close_ticket | Mark resolved |
 
-##  Key Features
+## Tasks
 
-*  OpenEnv-compatible agent
-*  Deterministic policy (no randomness)
-*  Customer-aware refund handling
-*  Safe fallback mechanisms
-*  Structured execution logs (`[START] → [STEP] → [END]`)
-*  Works across **easy / medium / hard tasks**
-*  Fully Dockerized for consistent evaluation
-*  Custom environment included
+| Task | Difficulty | Scenario |
+|---|---|---|
+| easy_1 | Easy | Simple refund, clear policy, standard customer |
+| medium_1 | Medium | Ambiguous complaint, premium customer, edge case policy |
+| hard_1 | Hard | Multi-issue enterprise escalation, churn risk, $2,450 order |
 
----
+## Scoring
 
-##  Project Structure
+```
+30% customer satisfaction + 25% resolution quality + 20% policy compliance + 15% efficiency + 10% proper closure
+```
+
+## Quick Start
 
 ```bash
-OpenOps/
-│── inference.py            # Main agent logic
-│── requirements.txt        # Dependencies
-│── Dockerfile              # Container setup
-│── app.py                  # (Optional) API entrypoint
-│── openenv.yaml            # Environment configuration
-│── README.md               # Project documentation
-│
-├── env/                    # OpenOps-compatible environment
-│   ├── __init__.py
-│   ├── environment.py      # Core environment logic
-│   ├── tasks.py            # Task definitions (easy/medium/hard)
-│   ├── models.py           # Action and state models
-│   ├── graders.py          # Reward & scoring logic
+pip install -r requirements.txt
+uvicorn server.app:app --port 7860
 ```
 
----
+## Environment Variables
 
-## ▶ Run Locally
-
-```bash
-python inference.py
-```
-
----
-
-##  Run with Docker
-
-### 1. Build Image
-
-```bash
-docker build -t openops .
-```
-
-### 2. Run Container
-
-```bash
-docker run --rm openops
-```
-
----
-
-##  Sample Output
-
-```text
-[START] task=easy env=openops model=deterministic-agent
-[STEP] step=1 action=classify_email reward=0.34 done=false error=null
-[STEP] step=2 action=query_customer_db reward=0.12 done=false error=null
-[STEP] step=3 action=approve_refund reward=0.42 done=false error=null
-[STEP] step=4 action=send_reply reward=0.00 done=true error=null
-[END] success=true steps=4 rewards=0.34,0.12,0.42,0.00
-```
-
----
-
-##  Workflow Logic
-
-1. **Classify Email** → Detect user intent
-2. **Query Customer DB** → Retrieve customer data
-3. **Decision Engine**
-
-   * Valid + known user → Approve refund
-   * Unknown / risky → Reject safely
-4. **Send Reply** → Final response to customer
-
----
-
-##  Design Principles
-
-* **Determinism First**
-  Ensures reproducible outputs across all runs and environments
-
-* **Safety Over Aggression**
-  Avoids incorrect approvals and unsafe actions
-
-* **Minimal & Clean Architecture**
-  No unnecessary dependencies or complexity
-
-* **Evaluation-Oriented Design**
-  Logs and flow aligned with automated grading systems
-
----
-
-##  Compliance with Requirements
-
-| Requirement                | Status |
-| -------------------------- | ------ |
-| Deterministic agent        | ✅      |
-| Structured action pipeline | ✅      |
-| Works on all task levels   | ✅      |
-| Clean logging format       | ✅      |
-| Docker support             | ✅      |
-| No external API dependency | ✅      |
-| Safe decision-making       | ✅      |
-| Environment included       | ✅      |
-
----
-
-##  Notes
-
-* Designed specifically for **evaluation environments**
-* Optimized for **stability and correctness**
-* No reliance on external APIs (fully offline)
-* Custom OpenOps-compatible environment included
-
----
-
-##  Final Status
-
--> Fully functional
--> Error-free execution
--> Docker verified
--> Evaluation compliant
--> Submission ready
-
----
-
-##  Author
-
-Developed as part of an AI systems project focused on **real-world workflow automation, decision intelligence, and reliable agent design**.
-
----
-
-##  Why This Solution Stands Out
-
-* Deterministic and reproducible (rare in agent submissions)
-* Strong alignment with evaluation metrics
-* Clean system design (agent + environment separation)
-* Handles edge cases safely
-* Ready for real-world workflow extension
-
----
-
-**A Custom OpenOps-compatible environment included for full reproducibility.**
+| Variable | Required | Description |
+|---|---|---|
+| `API_BASE_URL` | Yes | OpenAI-compatible API endpoint |
+| `MODEL_NAME` | Yes | Model identifier |
+| `HF_TOKEN` | Yes | HuggingFace token / API key |
+| `LOCAL_IMAGE_NAME` | Optional | Docker image for `from_docker_image()` |
